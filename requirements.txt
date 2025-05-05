@@ -1,0 +1,9 @@
+spacy~=3.8.5
+torch~=2.7.0
+torchaudio~=2.7.0
+datasets~=3.5.1
+pydub~=0.25.1
+openai-whisper~=20240930
+fastapi~=0.115.12
+numpy~=2.2.5
+transformers~=4.33.3
