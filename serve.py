@@ -23,7 +23,7 @@ from nlp import atc_ner
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 FINE_TUNED_DIR = Path("model/whisper-atc")
-BASELINE_MODEL = "openai/whisper-small"
+BASELINE_MODEL = "openai/whisper-tiny"
 
 fine_tuned = whisper.load_model(FINE_TUNED_DIR, device=DEVICE)
 baseline = whisper.load_model(BASELINE_MODEL, device=DEVICE)
