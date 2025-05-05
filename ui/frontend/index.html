@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>ATC Whisper – Transcriber</title>
+    <script src="https://cdn.jsdelivr.net/npm/diff-match-patch@1.0.5/index.min.js"></script>
+    <style>
+        body{font-family:system-ui,Arial;margin:2rem;max-width:980px}
+        h1{margin-top:0}
+        .btn{margin-right:.5rem;padding:.4rem .8rem;font-size:1rem}
+        .transcript{white-space:pre-wrap;border:1px solid #ccc;padding:.8rem}
+        .diff-ins{background:#c8facc}
+        .diff-del{text-decoration:line-through;background:#ffb6ba}
+    </style>
+</head>
+<body>
+<h1>ATC Whisper Transcriber</h1>
+
+<input id="file" type="file" accept="audio/*"/>
+<button id="doTranscribe" class="btn">Transcribe (fine-tuned)</button>
+<button id="doCompare"    class="btn">Compare with baseline</button>
+
+<h2>Fine-tuned transcript</h2>
+<div id="custom" class="transcript"></div>
+
+<h3>Detected entities</h3>
+<ul id="entities"></ul>
+
+<h2 id="baseHead" style="display:none">Baseline transcript</h2>
+<div id="baseline" class="transcript"></div>
+
+<h2 id="diffHead" style="display:none">Diff (fine-tuned ↔ baseline)</h2>
+<div id="diff" class="transcript"></div>
+
+<script>
+    async function send(endpoint){
+        const f=document.getElementById('file').files[0];
+        if(!f){alert('Pick an audio file first!');throw'';}
+        const fd=new FormData(); fd.append('file',f);
+        const r=await fetch(endpoint,{method:'POST',body:fd});
+        if(!r.ok) throw new Error(await r.text());
+        return r.json();
+    }
+    function renderEntities(a){
+        const ul=document.getElementById('entities'); ul.innerHTML='';
+        a.forEach(([t,l])=>{
+            const li=document.createElement('li'); li.textContent=`${l}: ${t}`; ul.appendChild(li);
+        });
+    }
+    document.getElementById('doTranscribe').onclick=async()=>{
+        const out=await send('/transcribe');
+        document.getElementById('custom').textContent=out.text;
+        renderEntities(out.entities);
+        ['baseline','diff'].forEach(id=>document.getElementById(id).textContent='');
+        ['baseHead','diffHead'].forEach(id=>document.getElementById(id).style.display='none');
+    };
+    document.getElementById('doCompare').onclick=async()=>{
+        const out=await send('/compare');
+        document.getElementById('custom').textContent=out.custom_transcript;
+        renderEntities(out.entities);
+        document.getElementById('baseHead').style.display='';
+        document.getElementById('baseline').textContent=out.baseline_transcript;
+        const dmp=new diff_match_patch();
+        const diff=dmp.diff_main(out.baseline_transcript,out.custom_transcript);
+        dmp.diff_cleanupSemantic(diff);
+        const box=document.getElementById('diff'); box.innerHTML='';
+        diff.forEach(([o,d])=>{
+            const s=document.createElement('span'); s.textContent=d;
+            if(o===1)s.className='diff-ins'; if(o===-1)s.className='diff-del';
+            box.appendChild(s);
+        });
+        document.getElementById('diffHead').style.display='';
+    };
+</script>
+</body>
+</html>
