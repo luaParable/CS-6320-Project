@@ -1,114 +1,131 @@
 """
-Fine-tune Whisper-tiny on the chunks prepared in `data/chunk_creation.py`.
+Fine-tune Whisper-tiny on ATC chunks – Windows-safe and with a robust loader.
+
+Run after:
+  • `input/convert_mp3_to_wav.py`
+  • `data/chunk_creation.py`
 """
 from __future__ import annotations
+
 import os
+import platform
 import random
+from multiprocessing import freeze_support
 from pathlib import Path
 
 import datasets
 import numpy as np
+import soundfile as sf
 import torch
 import torchaudio
 from transformers import (
-    WhisperForConditionalGeneration,
-    WhisperProcessor,
-    TrainingArguments,
-    Trainer,
-    set_seed,
+    WhisperForConditionalGeneration, WhisperProcessor,
+    TrainingArguments, Trainer, set_seed,
 )
 
 from data.augment import augment
 
-# ---------------------------------------------------------------------- #
-SEED = 42
-set_seed(SEED)
-torch.backends.cudnn.deterministic = True
-random.seed(SEED)
-np.random.seed(SEED)
 
-# ---------------------------------------------------------------------- #
-BASE_MODEL = "openai/whisper-tiny"
-processor = WhisperProcessor.from_pretrained(BASE_MODEL)
-model = WhisperForConditionalGeneration.from_pretrained(BASE_MODEL)
-SAMPLE_RATE = processor.feature_extractor.sampling_rate  # 16 000
-
-HF_DATASET_DIR = Path("data/chunks_dataset")
-assert HF_DATASET_DIR.exists(), (
-    "Dataset missing – run data/chunk_creation.py first."
-)
+# ────────────────────────────────────────────────────────────────────────
+def safe_load(path: str):
+    """
+    Try torchaudio; fall back to SoundFile if torchaudio cannot decode.
+    Returns   waveform (channels×samples), sample_rate.
+    """
+    try:
+        return torchaudio.load(path)
+    except RuntimeError:
+        data, sr = sf.read(path, always_2d=True)       # samples×channels
+        return torch.from_numpy(data.T), sr            # → channels×samples
 
 
-# ---------------------------------------------------------------------- #
+# globals filled in main()
+processor: WhisperProcessor
+SAMPLE_RATE: int
+
+
 def _preprocess(batch):
-    waveform, sr = torchaudio.load(batch["path"])
+    wav, sr = safe_load(batch["path"])
     if sr != SAMPLE_RATE:
-        waveform = torchaudio.functional.resample(waveform, sr, SAMPLE_RATE)
-    waveform = waveform.mean(0)  # mono
+        wav = torchaudio.functional.resample(wav, sr, SAMPLE_RATE)
+    wav = wav.mean(0)                     # mono
+    wav = augment(wav, SAMPLE_RATE)
 
-    waveform = augment(waveform, SAMPLE_RATE)
-
-    input_features = processor.feature_extractor(
-        waveform.numpy(), sampling_rate=SAMPLE_RATE, return_tensors="pt"
+    inp = processor.feature_extractor(
+        wav.numpy(), sampling_rate=SAMPLE_RATE, return_tensors="pt"
     ).input_features[0]
 
     with processor.as_target_processor():
-        labels = processor(batch["text"]).input_ids
-
-    return {"input_features": input_features, "labels": labels}
-
-
-print("🔄  Loading dataset …")
-ds = datasets.load_from_disk(str(HF_DATASET_DIR))
-assert "train" in ds and "dev" in ds
-
-ds = ds.map(
-    _preprocess,
-    remove_columns=ds["train"].column_names,
-    num_proc=os.cpu_count(),
-    desc="Preparing Whisper features",
-)
-
-ds.set_format(type="torch", columns=["input_features", "labels"])
+        lab = processor(batch["text"]).input_ids
+    return {"input_features": inp, "labels": lab}
 
 
-# ---------------------------------------------------------------------- #
-def data_collator(batch):
-    input_features = torch.stack([x["input_features"] for x in batch])
+def collate(ex):
+    feats = torch.stack([x["input_features"] for x in ex])
     labels = processor.tokenizer.pad(
-        {"input_ids": [x["labels"] for x in batch]}, padding=True, return_tensors="pt"
+        {"input_ids": [x["labels"] for x in ex]}, padding=True, return_tensors="pt"
     ).input_ids
     labels[labels == processor.tokenizer.pad_token_id] = -100
-    return {"input_features": input_features, "labels": labels}
+    return {"input_features": feats, "labels": labels}
 
 
-args = TrainingArguments(
-    output_dir="model/whisper-atc",
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
-    gradient_accumulation_steps=2,
-    learning_rate=1e-5,
-    warmup_steps=250,
-    max_steps=4000,
-    evaluation_strategy="steps",
-    eval_steps=250,
-    save_steps=250,
-    logging_steps=50,
-    fp16=torch.cuda.is_available(),
-    load_best_model_at_end=True,
-    report_to="none",
-)
+# ────────────────────────────────────────────────────────────────────────
+def main():
+    freeze_support()                       # Windows multiprocessing fix
+    SEED = 42
+    set_seed(SEED)
+    torch.backends.cudnn.deterministic = True
+    random.seed(SEED); np.random.seed(SEED)
 
-if __name__ == "__main__":
-    trainer = Trainer(
+    global processor, SAMPLE_RATE
+    BASE = "openai/whisper-tiny"
+    processor = WhisperProcessor.from_pretrained(BASE)
+    model     = WhisperForConditionalGeneration.from_pretrained(BASE)
+    SAMPLE_RATE = processor.feature_extractor.sampling_rate
+
+    dpath = Path("data/chunks_dataset")
+    if not dpath.exists():
+        raise SystemExit("❌ dataset missing – run data/chunk_creation.py first.")
+    ds = datasets.load_from_disk(dpath)
+    num_proc = 1 if platform.system() == "Windows" else os.cpu_count()
+
+    ds = ds.map(
+        _preprocess,
+        remove_columns=ds["train"].column_names,
+        num_proc=num_proc,
+        desc="Extracting Whisper features",
+    ).with_format("torch")
+
+    args = TrainingArguments(
+        output_dir="model/whisper-atc",
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
+        gradient_accumulation_steps=2,
+        learning_rate=1e-5,
+        warmup_steps=250,
+        max_steps=4000,
+        evaluation_strategy="steps",
+        eval_steps=250,
+        save_steps=250,
+        logging_steps=50,
+        fp16=torch.cuda.is_available(),
+        load_best_model_at_end=True,
+        report_to="none",
+    )
+
+    Trainer(
         model=model,
         args=args,
         train_dataset=ds["train"],
         eval_dataset=ds["dev"],
         tokenizer=processor.feature_extractor,
-        data_collator=data_collator,
-    )
+        data_collator=collate,
+    ).train()
 
-    trainer.train()
-    trainer.save_model("model/whisper-atc")
+    model.save_pretrained("model/whisper-atc")
     processor.save_pretrained("model/whisper-atc")
+    print("✅  Training finished – model stored in model/whisper-atc")
+
+
+if __name__ == "__main__":
+    main()

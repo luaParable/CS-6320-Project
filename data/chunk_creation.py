@@ -21,29 +21,29 @@ DATASET_OUT   = Path(__file__).parent / "chunks_dataset"
 CHUNK_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------- #
-print("🔪  Splitting WAV files into chunks …")
+print("🔪  Splitting wav files into chunks …")
 for wav_file in WAV_DIR.glob("*.wav"):
     audio = AudioSegment.from_wav(wav_file)
     pieces = split_on_silence(
         audio,
-        min_silence_len=100,            # ms
+        min_silence_len=100,
         silence_thresh=audio.dBFS - 14,
-        keep_silence=100,               # ms
+        keep_silence=100,
     )
-    for i, segment in enumerate(pieces):
+    for i, seg in enumerate(pieces):
         out = CHUNK_DIR / f"{wav_file.stem}-chunk{i}.wav"
-        segment.export(out, format="wav")
+        (
+            seg.set_frame_rate(16_000)
+            .set_channels(1)
+            .set_sample_width(2)          # 16-bit
+            .export(out, format="wav", parameters=["-acodec", "pcm_s16le"])
+        )
 
-# ---------------------------------------------------------------------- #
-print("📦  Building HuggingFace dataset (train / dev) …")
-paths = sorted(str(p.resolve()) for p in CHUNK_DIR.glob("*.wav"))
-base_ds = datasets.Dataset.from_dict({"path": paths, "text": [""] * len(paths)})
-splits  = base_ds.train_test_split(test_size=0.1, seed=42)
-ds      = datasets.DatasetDict({"train": splits["train"], "dev": splits["test"]})
-
+print("📦  Building HF dataset …")
+paths  = sorted(str(p) for p in CHUNK_DIR.glob("*.wav"))
+base   = datasets.Dataset.from_dict({"path": paths, "text": [""] * len(paths)})
+splits = base.train_test_split(test_size=0.1, seed=42)
+ds     = datasets.DatasetDict({"train": splits["train"], "dev": splits["test"]})
 DATASET_OUT.mkdir(parents=True, exist_ok=True)
-ds.save_to_disk(str(DATASET_OUT))
-print(
-    f"✅  Dataset saved to {DATASET_OUT} "
-    f"({len(ds['train'])} train / {len(ds['dev'])} dev examples)"
-)
+ds.save_to_disk(DATASET_OUT)
+print(f"✅  Saved {len(ds['train'])}+{len(ds['dev'])} examples → {DATASET_OUT}")
