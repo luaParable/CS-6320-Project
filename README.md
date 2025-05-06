@@ -3,7 +3,7 @@ Automated Transcription & Entity Extraction for Air-Traffic-Control Speech
 
 ---
 
-## 1 What this project does
+## 1 What Does It Do?
 * Converts raw tower / approach recordings (MP3 or WAV) into  
   – a clean transcript, and  
   – a colour-coded table of callsigns, headings, runways, etc.
@@ -16,7 +16,7 @@ Automated Transcription & Entity Extraction for Air-Traffic-Control Speech
 
 ---
 
-## 2 Repository layout
+## 2 Repository layout
 
 ```
 pv2/
@@ -58,7 +58,7 @@ pv2/
 
 ---
 
-## 3 Quick-start (Windows / PowerShell)
+## 3 Quick Start
 
 ```powershell
 # 0) clone & create venv
@@ -88,36 +88,24 @@ python api.py
 
 ---
 
-## 4 Command-line transcription to Markdown
-
-```powershell
-python transcribe_md.py  path\to\audio.wav
-# writes  output/<name>.md
-```
-
-Sample excerpt:
-
-```md
-## Fine-Tuned Whisper-ATC
-AMERICAN FIVE SIX FOUR HEAVY DESCEND AND MAINTAIN ONE THREE THOUSAND.
-
-| text                     | label      |
-|--------------------------|------------|
-| AMERICAN FIVE SIX FOUR   | CALLSIGN   |
-| ONE THREE THOUSAND       | ALTITUDE   |
-| DENVER APPROACH          | ATC_UNIT   |
-```
-
----
-
-## 5 Tweaking fine-tuning effort
+## 5 Tweaking
 Open `train_asr_public_corpus.py` and edit the **CONFIG block**:
 
 ```python
-FAST_MODE        = True      # subset / full corpus
-UNFREEZE_LAYERS  = 0         # 0=head only, 1=last block, 2=last-2 …
-STEPS_FAST       = 20        # optimisation steps
-STEPS_FULL       = 100
+# ────────── CONFIG – tweak here, nothing else ──────────
+FAST_MODE        = True      # True  → subset + few steps
+UNFREEZE_LAYERS  = 4         # 0=head-only, 1=last block, 2=last-2 blocks …
+STEPS_FAST       = 20        # max update steps if FAST_MODE
+STEPS_FULL       = 400       # max update steps otherwise
+SUBSET_TRAIN     = 2_000     # rows when FAST_MODE
+SUBSET_DEV       = 500
+BATCH_SIZE       = 64        # per-device batch
+LEARNING_RATE    = 1e-5
+OUTPUT_DIR       = "model/whisper-atc-11"
+DATASET_ID       = "luigisaetta/atco2_atcosim"
+SR               = 16_000
+MAX_LEN          = SR * 30
+# ───────────────────────────────────────────────────────
 ```
 
 Set `UNFREEZE_LAYERS = 2` and `FAST_MODE = False` for a still-quick
@@ -125,7 +113,7 @@ Set `UNFREEZE_LAYERS = 2` and `FAST_MODE = False` for a still-quick
 
 ---
 
-## 6 Named-Entity Recognition details
+## 6 Named-Entity Recognition
 
 `nlp/atc_ner.py` combines spaCy **Matcher** patterns with a few precise
 regexes.  Labels emitted:
@@ -149,23 +137,16 @@ False positives were reduced by
 
 ---
 
-## 7 Testing
-* `pytest` ensures every dev JSON has a callsign and that NER still
-  finds it after each change.
-* `/health` returns `{"status":"ok"}` – used by GitHub CI.
-
----
-
-## 8 Demo video
+## 7 Demo
 [Watch the video](https://youtu.be/<your-id>)  
 Runtime ≤ 2 minutes: overview → fast fine-tune → live UI demo.
 
 ---
 
-## 9 License / Credits
+## 8 License / Credits
 Code MIT.  Audio data © ATCOSIM / ATCO-2 (ELRA-S0484) used under the
 project licence.  Logo icons from Twemoji CC-BY-4.0.
 
 ---
 
-*Last updated · see CHANGELOG.md for incremental steps.*
+*See CHANGELOG.md for a detailed sequence of development*
