@@ -1,5 +1,5 @@
 """
-nlp/atc_ner.py  –  Token-level ATC NER (low FP version)
+nlp/atc_ner.py  –  Token-level ATC NER
 """
 
 from typing import List, Tuple
