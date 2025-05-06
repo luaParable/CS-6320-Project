@@ -1,6 +1,7 @@
 # ATC-Whisper 📡✈️
 Automated Transcription & Entity Extraction for Air-Traffic-Control Speech
 
+https://github.com/luaParable/CS-6320-Project/
 ---
 
 ## 1 What Does It Do?
@@ -138,7 +139,8 @@ False positives were reduced by
 ---
 
 ## 6 Demo
-[Watch the video](https://youtu.be/<your-id>)
+[Watch the video](https://youtu.be/RhfiXI0LLQY)
+The video can also be found in the github repository
 
 ---
 
