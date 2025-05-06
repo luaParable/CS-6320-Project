@@ -88,7 +88,7 @@ python api.py
 
 ---
 
-## 5 Tweaking
+## 4 Tweaking
 Open `train_asr_public_corpus.py` and edit the **CONFIG block**:
 
 ```python
@@ -113,7 +113,7 @@ Set `UNFREEZE_LAYERS = 2` and `FAST_MODE = False` for a still-quick
 
 ---
 
-## 6 Named-Entity Recognition
+## 5 Named-Entity Recognition
 
 `nlp/atc_ner.py` combines spaCy **Matcher** patterns with a few precise
 regexes.  Labels emitted:
@@ -137,13 +137,13 @@ False positives were reduced by
 
 ---
 
-## 7 Demo
+## 6 Demo
 [Watch the video](https://youtu.be/<your-id>)  
 Runtime ≤ 2 minutes: overview → fast fine-tune → live UI demo.
 
 ---
 
-## 8 License / Credits
+## 7 License / Credits
 Code MIT.  Audio data © ATCOSIM / ATCO-2 (ELRA-S0484) used under the
 project licence.  Logo icons from Twemoji CC-BY-4.0.
 
