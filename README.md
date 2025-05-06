@@ -138,8 +138,7 @@ False positives were reduced by
 ---
 
 ## 6 Demo
-[Watch the video](https://youtu.be/<your-id>)  
-Runtime ≤ 2 minutes: overview → fast fine-tune → live UI demo.
+[Watch the video](https://youtu.be/<your-id>)
 
 ---
 
