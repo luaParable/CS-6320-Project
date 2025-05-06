@@ -10,16 +10,24 @@ Optimisations over the “vanilla” script:
 Keeps   • Windows-safe multiprocessing   • Robust audio loader.
 """
 from __future__ import annotations
-import os, random, platform, warnings
-from pathlib import Path
-from multiprocessing import freeze_support
 
-import datasets, numpy as np, torch, torchaudio, soundfile as sf
+import random
+import warnings
+from multiprocessing import freeze_support
+from pathlib import Path
+
+import datasets
+import numpy as np
+import soundfile as sf
+import torch
+import torchaudio
 from transformers import (
     WhisperForConditionalGeneration, WhisperProcessor,
     TrainingArguments, Trainer, set_seed,
 )
+
 from data.augment import augment
+
 
 # ---------------------------------------------------------------------- #
 # 1. helpers
@@ -112,7 +120,7 @@ def main():
         raise SystemExit("❌  dataset missing – run data/chunk_creation.py first.")
     ds = datasets.load_from_disk(dpath)
 
-    num_proc = 1 if platform.system() == "Windows" else os.cpu_count()
+    num_proc = 1
     ds = ds.map(
         _preprocess,
         remove_columns=ds["train"].column_names,
@@ -123,8 +131,8 @@ def main():
     # TrainingArguments
     args = TrainingArguments(
         output_dir="model/whisper-atc",
-        per_device_train_batch_size=64,      # ↑ batch
-        per_device_eval_batch_size=64,
+        per_device_train_batch_size=32,      # ↑ batch
+        per_device_eval_batch_size=32,
         gradient_accumulation_steps=1,       # ↓ accum
         learning_rate=1e-5,
         max_steps=3000,
